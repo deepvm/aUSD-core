@@ -21,6 +21,17 @@ interface ICErc20 {
     function redeemUnderlying(uint256 redeemAmount) external returns (uint256);
 }
 
+interface IMultiMerkleDistributor {
+    struct ClaimParam {
+        uint256 merkleIndex;
+        uint256 index;
+        uint256[] amounts;
+        bytes32[] merkleProof;
+    }
+
+    function multiClaim(ClaimParam[] calldata claims) external;
+}
+
 contract Minter2 is AccessControl, EIP712, Nonces {
     using SafeERC20 for IERC20;
     using SafeERC20 for Unit;
@@ -29,6 +40,8 @@ contract Minter2 is AccessControl, EIP712, Nonces {
     bytes32 public constant SIGNER_ROLE = keccak256("SIGNER_ROLE");
     bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
     bytes32 public constant KEEPER_ROLE = keccak256("KEEPER_ROLE");
+
+    address public constant JUSTLEND_DISTRIBUTOR = 0xcF6CC9591f7B424295294D8138A8b2EDBAFc6Ee8; // TUsyCPRyQdMsn9WnJcssBFXtzg6bUVbty6
 
     bytes32 public constant MINT_TYPEHASH =
         keccak256("Mint(address account,uint256 assets,bool stake,uint256 nonce,uint256 deadline)");
@@ -129,9 +142,23 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         UNIT.mint(distributor, usddAmount / 1e12);
     }
 
+    function multiClaimJustLendRewards(IMultiMerkleDistributor.ClaimParam[] calldata claims)
+        external
+        onlyRole(KEEPER_ROLE)
+    {
+        IMultiMerkleDistributor(JUSTLEND_DISTRIBUTOR).multiClaim(claims);
+    }
+
     function withdraw(IERC20 token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         token.forceApprove(address(this), type(uint256).max);
         token.safeTransferFrom(address(this), to, amount);
+    }
+
+    function executeCall(address target, uint256 value, bytes calldata data) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (target == address(0)) revert ZeroAddress();
+
+        (bool success,) = target.call{value: value}(data);
+        if (!success) revert OperationFailed();
     }
 
     function _mintInternal(uint256 assets) private returns (uint256) {
