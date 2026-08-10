@@ -18,7 +18,7 @@ contract ForkMainnetTest is Test {
     address constant USDT_ADDR = 0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C;
     address constant USDD_ADDR = 0xE91A7411e56Ce79E83570570f49B9FC35B7727c5;
     address constant PSM_ADDR = 0xB50Eb419ebeBA06c80Df5e9AaeC494Cef4297879;
-    address constant jUSDD_ADDR = 0xE7F8A90ede3d84c7c0166BD84A4635E4675aCcfC;
+    address constant jUSDD_ADDR = 0x65c9fede72ba73cd1b0dca2a974c070153dc6fcb;
 
     MockTRONUSDT usdt;
     Unit UNIT;
@@ -787,5 +787,71 @@ contract ForkMainnetTest is Test {
 
         // Verify UNIT has been minted directly to the distributor contract (with 1e12 offset)
         assertEq(UNIT.balanceOf(address(distributor)), 1000e6);
+    }
+
+    function testMinter2ClaimJustLendRewards() public {
+        MockMultiMerkleDistributor mockDistributorTemplate = new MockMultiMerkleDistributor(IERC20(address(usdd)));
+        vm.etch(minter2.JUSTLEND_DISTRIBUTOR(), address(mockDistributorTemplate).code);
+
+        // Mint USDD to mock distributor address
+        usdd.mint(minter2.JUSTLEND_DISTRIBUTOR(), 500e18);
+
+        // Prepare claims tuple for multiClaimJustLendRewards
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100e18;
+        amounts[1] = 0;
+
+        bytes32[] memory proof = new bytes32[](1);
+        proof[0] = keccak256("proof");
+
+        IMultiMerkleDistributor.ClaimParam[] memory claims = new IMultiMerkleDistributor.ClaimParam[](1);
+        claims[0] = IMultiMerkleDistributor.ClaimParam({
+            merkleIndex: 0x1f,
+            index: 0x083c,
+            amounts: amounts,
+            merkleProof: proof
+        });
+
+        // Non-KEEPER attempt reverts
+        vm.startPrank(userA);
+        vm.expectRevert();
+        minter2.multiClaimJustLendRewards(claims);
+        vm.stopPrank();
+
+        // KEEPER execution succeeds
+        vm.prank(admin);
+        minter2.multiClaimJustLendRewards(claims);
+
+        // USDD transferred from mockDistributor to minter2
+        assertEq(usdd.balanceOf(address(minter2)), 100e18);
+    }
+
+    function testExecuteCall() public {
+        // Non-admin call reverts
+        vm.startPrank(userA);
+        vm.expectRevert();
+        minter2.executeCall(address(usdt), 0, abi.encodeWithSignature("transfer(address,uint256)", userA, 10e6));
+        vm.stopPrank();
+
+        // Admin call succeeds
+        usdt.mint(address(minter2), 10e6);
+        vm.prank(admin);
+        minter2.executeCall(address(usdt), 0, abi.encodeWithSignature("transfer(address,uint256)", userA, 10e6));
+
+        assertEq(usdt.balanceOf(userA), 10e6);
+    }
+}
+
+contract MockMultiMerkleDistributor {
+    IERC20 public immutable usdd;
+
+    constructor(IERC20 usdd_) {
+        usdd = usdd_;
+    }
+
+    function multiClaim(IMultiMerkleDistributor.ClaimParam[] calldata claims) external {
+        for (uint256 i = 0; i < claims.length; i++) {
+            usdd.transfer(msg.sender, claims[i].amounts[0]);
+        }
     }
 }
