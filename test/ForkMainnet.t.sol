@@ -18,7 +18,7 @@ contract ForkMainnetTest is Test {
     address constant USDT_ADDR = 0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C;
     address constant USDD_ADDR = 0xE91A7411e56Ce79E83570570f49B9FC35B7727c5;
     address constant PSM_ADDR = 0xB50Eb419ebeBA06c80Df5e9AaeC494Cef4297879;
-    address constant jUSDD_ADDR = 0x65c9fede72ba73cd1b0dca2a974c070153dc6fcb;
+    address constant jUSDD_ADDR = 0x65c9feDE72Ba73CD1B0DCA2A974C070153dC6FCB;
 
     MockTRONUSDT usdt;
     Unit UNIT;
@@ -806,10 +806,7 @@ contract ForkMainnetTest is Test {
 
         IMultiMerkleDistributor.ClaimParam[] memory claims = new IMultiMerkleDistributor.ClaimParam[](1);
         claims[0] = IMultiMerkleDistributor.ClaimParam({
-            merkleIndex: 0x1f,
-            index: 0x083c,
-            amounts: amounts,
-            merkleProof: proof
+            merkleIndex: 0x1f, index: 0x083c, amounts: amounts, merkleProof: proof
         });
 
         // Non-KEEPER attempt reverts
