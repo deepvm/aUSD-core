@@ -70,7 +70,7 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         IPSM psm_,
         ICErc20 jUsdd_,
         StakedUnit stakedUnit_
-    ) EIP712("Unit Minter", "2") {
+    ) EIP712("Unit Minter", "3") {
         if (
             admin_ == address(0) || address(usdt_) == address(0) || address(unit_) == address(0)
                 || address(usdd_) == address(0) || address(psm_) == address(0) || address(jUsdd_) == address(0)
