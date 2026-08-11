@@ -6,7 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Minter} from "../src/Minter.sol";
 import {Unit} from "../src/Unit.sol";
 import {StakedUnit} from "../src/StakedUnit.sol";
-import {Minter2, IPSM, ICErc20} from "../src/Minter2.sol";
+import {Minter2, IPSM, ICErc20, IMultiMerkleDistributor} from "../src/Minter2.sol";
 import {MockTRONUSDT} from "./MockTRONUSDT.sol";
 import {MockUSDD} from "./MockUSDD.sol";
 import {MockPSM} from "./MockPSM.sol";
