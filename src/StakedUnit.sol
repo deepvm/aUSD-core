@@ -3,63 +3,25 @@ pragma solidity 0.8.27;
 
 import {IERC20, ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Unit} from "./Unit.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract StakedUnit is ERC4626, Ownable {
-    uint256 private constant BPS = 10_000;
+contract StakedUnit is ERC4626 {
+    error NonTransferable();
 
-    uint256 public lastUpdate;
-    uint256 public rate;
-    uint256 public totalAssetBalance;
+    constructor(IERC20 asset_) ERC20("Staked unitUSD", "sunitUSD") ERC4626(asset_) {}
 
-    error InvalidRate();
-
-    constructor(address admin_, IERC20 asset_) ERC20("Staked unitUSD", "sunitUSD") ERC4626(asset_) Ownable(admin_) {
-        lastUpdate = block.timestamp;
+    function _convertToShares(uint256 assets, Math.Rounding) internal pure override returns (uint256) {
+        return assets;
     }
 
-    function setRate(uint256 rate_) external onlyOwner {
-        if (rate_ > BPS) revert InvalidRate();
-        _sync();
-        rate = rate_;
+    function _convertToAssets(uint256 shares, Math.Rounding) internal pure override returns (uint256) {
+        return shares;
     }
 
-    function totalAssets() public view override returns (uint256 assets) {
-        assets = totalAssetBalance;
-        uint256 timeElapsed = block.timestamp - lastUpdate;
-        if (timeElapsed > 0 && assets > 0) {
-            assets += (assets * rate * timeElapsed) / (BPS * 365 days);
+    function _update(address from, address to, uint256 value) internal override {
+        if (from != address(0) && to != address(0)) {
+            revert NonTransferable();
         }
-    }
-
-    function _transferIn(address from, uint256 assets) internal override {
-        _sync();
-        super._transferIn(from, assets);
-        totalAssetBalance += assets;
-    }
-
-    function _transferOut(address to, uint256 assets) internal override {
-        _sync();
-        super._transferOut(to, assets);
-        totalAssetBalance -= assets;
-    }
-
-    function _decimalsOffset() internal view virtual override returns (uint8) {
-        return 12;
-    }
-
-    function _sync() private {
-        uint256 timeElapsed = block.timestamp - lastUpdate;
-        if (totalAssetBalance == 0) {
-            lastUpdate = block.timestamp;
-        } else {
-            uint256 yield = (totalAssetBalance * rate * timeElapsed) / (BPS * 365 days);
-            lastUpdate = block.timestamp;
-            if (yield > 0) {
-                totalAssetBalance += yield;
-                Unit(address(asset())).mint(address(this), yield);
-            }
-        }
+        super._update(from, to, value);
     }
 }

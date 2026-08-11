@@ -7,7 +7,7 @@ import {MockUSDD} from "./MockUSDD.sol";
 contract MockPSM {
     IERC20 public gem; // USDT
     MockUSDD public usdd;
-    
+
     uint256 public toutRate = 0; // WAD
     uint256 public tinRate = 0; // WAD
 
@@ -42,24 +42,24 @@ contract MockPSM {
         // Pull USDT (gem) from msg.sender to gemJoin (address(this))
         // Note: TRON USDT does not return a value, so we use safeTransferFrom style or just transferFrom
         gem.transferFrom(msg.sender, address(this), gemAmt);
-        
+
         // Calculate USDD to mint (6 decimals -> 18 decimals)
         // If there's tin: usddAmount = gemAmt * 10**12 - fee
-        uint256 fee = (gemAmt * 10**12 * tinRate) / 1e18;
-        uint256 usddAmount = gemAmt * 10**12 - fee;
-        
+        uint256 fee = (gemAmt * 10 ** 12 * tinRate) / 1e18;
+        uint256 usddAmount = gemAmt * 10 ** 12 - fee;
+
         usdd.mint(usr, usddAmount);
     }
 
     function buyGem(address usr, uint256 gemAmt) external {
         // Calculate USDD required: gemAmt * 10**12 + fee
-        uint256 fee = (gemAmt * 10**12 * toutRate) / 1e18;
-        uint256 usddRequired = gemAmt * 10**12 + fee;
-        
+        uint256 fee = (gemAmt * 10 ** 12 * toutRate) / 1e18;
+        uint256 usddRequired = gemAmt * 10 ** 12 + fee;
+
         // Pull USDD from msg.sender and burn it
         usdd.transferFrom(msg.sender, address(this), usddRequired);
         usdd.burn(address(this), usddRequired);
-        
+
         // Release USDT (gem) from this contract to usr
         // Standard TRON compatibility: we must support transfer
         // Note: we can just call transfer. In our mock, gem is MockTRONUSDT.
@@ -71,9 +71,7 @@ contract MockPSM {
         // We can just use standard transfer here since it's a mock.
         // Wait, standard transfer of MockTRONUSDT returns false. So if we use transfer, we should ignore the return value or use low-level call.
         // Let's do a low-level call to gem.transfer to avoid reverting on returning false.
-        (bool success, ) = address(gem).call(
-            abi.encodeWithSignature("transfer(address,uint256)", usr, gemAmt)
-        );
+        (bool success,) = address(gem).call(abi.encodeWithSignature("transfer(address,uint256)", usr, gemAmt));
         require(success, "USDT transfer failed");
     }
 }
