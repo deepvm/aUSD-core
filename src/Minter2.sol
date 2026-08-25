@@ -156,7 +156,7 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         uint256 claimed = USDD.balanceOf(address(this)) - balanceBefore;
         if (claimed == 0) return;
 
-        if (jUSDD.mint(claimed) != 0) revert OperationFailed();
+        _depositToJustLend(claimed);
         UNIT.mint(distributor, claimed / 1e12);
     }
 
@@ -179,10 +179,19 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         PSM.sellGem(address(this), assets);
         uint256 usddReceived = USDD.balanceOf(address(this)) - usddBefore;
 
-        if (usddReceived > 0 && jUSDD.mint(usddReceived) != 0) revert OperationFailed();
+        if (usddReceived > 0) {
+            _depositToJustLend(usddReceived);
+        }
         uint256 unitToMint = usddReceived / 1e12;
         if (assets > 0 && unitToMint == 0) revert OperationFailed();
         return unitToMint;
+    }
+
+    function _depositToJustLend(uint256 usddAmount) private {
+        uint256 sharesBefore = IERC20(address(jUSDD)).balanceOf(address(this));
+        if (jUSDD.mint(usddAmount) != 0) revert OperationFailed();
+        uint256 sharesReceived = IERC20(address(jUSDD)).balanceOf(address(this)) - sharesBefore;
+        if (sharesReceived == 0) revert OperationFailed();
     }
 
     function _redeemInternal(uint256 assets) private {
