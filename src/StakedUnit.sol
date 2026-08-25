@@ -15,6 +15,7 @@ contract StakedUnit is ERC4626 {
     error NonTransferable();
     error AccountFrozen();
     error Unauthorized();
+    error VaultInsolvent();
 
     constructor(IERC20 asset_) ERC20("Staked unitUSD", "sunitUSD") ERC4626(asset_) {}
 
@@ -24,6 +25,26 @@ contract StakedUnit is ERC4626 {
 
     function _convertToAssets(uint256 shares, Math.Rounding) internal pure override returns (uint256) {
         return shares;
+    }
+
+    function _isSolvent() internal view returns (bool) {
+        return totalAssets() >= totalSupply();
+    }
+
+    function maxDeposit(address receiver) public view override returns (uint256) {
+        return _isSolvent() ? super.maxDeposit(receiver) : 0;
+    }
+
+    function maxMint(address receiver) public view override returns (uint256) {
+        return _isSolvent() ? super.maxMint(receiver) : 0;
+    }
+
+    function maxWithdraw(address owner) public view override returns (uint256) {
+        return _isSolvent() ? super.maxWithdraw(owner) : 0;
+    }
+
+    function maxRedeem(address owner) public view override returns (uint256) {
+        return _isSolvent() ? super.maxRedeem(owner) : 0;
     }
 
     function confiscate(address from, address to, uint256 shares) external {
@@ -37,6 +58,7 @@ contract StakedUnit is ERC4626 {
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
+        if (!_isSolvent()) revert VaultInsolvent();
         Unit unit = Unit(address(asset()));
         if (unit.isFrozen(caller) || unit.isFrozen(receiver)) revert AccountFrozen();
         super._deposit(caller, receiver, assets, shares);
@@ -46,6 +68,7 @@ contract StakedUnit is ERC4626 {
         internal
         override
     {
+        if (!_isSolvent()) revert VaultInsolvent();
         Unit unit = Unit(address(asset()));
         if (unit.isFrozen(caller) || unit.isFrozen(receiver) || unit.isFrozen(owner)) revert AccountFrozen();
         super._withdraw(caller, receiver, owner, assets, shares);

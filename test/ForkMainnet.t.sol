@@ -180,6 +180,52 @@ contract ForkMainnetTest is Test {
         assertEq(sUNIT.totalAssets(), 0);
     }
 
+    function testVaultSolvencyProtection() public {
+        vm.prank(admin);
+        UNIT.mint(userA, 100e6);
+
+        vm.startPrank(userA);
+        UNIT.approve(address(sUNIT), 100e6);
+        sUNIT.deposit(100e6, userA);
+        vm.stopPrank();
+
+        // Simulate deficit: burn 50 UNIT directly from sUNIT
+        vm.prank(admin);
+        UNIT.burn(address(sUNIT), 50e6);
+
+        // Vault is now undercollateralized (50 assets vs 100 shares)
+        assertEq(sUNIT.totalAssets(), 50e6);
+        assertEq(sUNIT.totalSupply(), 100e6);
+
+        // max limits must report 0
+        assertEq(sUNIT.maxDeposit(userA), 0);
+        assertEq(sUNIT.maxMint(userA), 0);
+        assertEq(sUNIT.maxWithdraw(userA), 0);
+        assertEq(sUNIT.maxRedeem(userA), 0);
+
+        // Operations revert with max limit exceeded / VaultInsolvent
+        vm.startPrank(userA);
+        vm.expectRevert();
+        sUNIT.deposit(10e6, userA);
+
+        vm.expectRevert();
+        sUNIT.redeem(50e6, userA, userA);
+        vm.stopPrank();
+
+        // Recapitalize vault
+        vm.prank(admin);
+        UNIT.mint(address(sUNIT), 50e6);
+
+        // Solvency restored
+        assertEq(sUNIT.totalAssets(), 100e6);
+        assertTrue(sUNIT.maxRedeem(userA) > 0);
+
+        vm.startPrank(userA);
+        sUNIT.redeem(100e6, userA, userA);
+        vm.stopPrank();
+        assertEq(UNIT.balanceOf(userA), 100e6);
+    }
+
     function testVaultZeroDepositReverts() public {
         vm.startPrank(userA);
         UNIT.approve(address(sUNIT), 100e6);
