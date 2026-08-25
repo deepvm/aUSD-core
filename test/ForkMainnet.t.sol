@@ -616,6 +616,12 @@ contract ForkMainnetTest is Test {
 
         assertEq(usdt.balanceOf(userA), 10e6);
     }
+
+    function testInvalidIntegrationConstructor() public {
+        Unit otherUnit = new Unit(admin);
+        vm.expectRevert(Minter2.InvalidIntegration.selector);
+        new Minter2(admin, IERC20(USDT_ADDR), otherUnit, IERC20(USDD_ADDR), IPSM(PSM_ADDR), ICErc20(jUSDD_ADDR), sUNIT);
+    }
 }
 
 contract MockMultiMerkleDistributor {

@@ -61,6 +61,7 @@ contract Minter2 is AccessControl, EIP712, Nonces {
     error ZeroAddress();
     error PermitExpired();
     error OperationFailed();
+    error InvalidIntegration();
 
     constructor(
         address admin_,
@@ -76,6 +77,9 @@ contract Minter2 is AccessControl, EIP712, Nonces {
                 || address(usdd_) == address(0) || address(psm_) == address(0) || address(jUsdd_) == address(0)
                 || address(stakedUnit_) == address(0)
         ) revert ZeroAddress();
+
+        if (stakedUnit_.asset() != address(unit_)) revert InvalidIntegration();
+
         USDT = usdt_;
         UNIT = unit_;
         USDD = usdd_;
@@ -169,7 +173,9 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         uint256 usddReceived = USDD.balanceOf(address(this)) - usddBefore;
 
         if (usddReceived > 0 && jUSDD.mint(usddReceived) != 0) revert OperationFailed();
-        return usddReceived / 1e12;
+        uint256 unitToMint = usddReceived / 1e12;
+        if (assets > 0 && unitToMint == 0) revert OperationFailed();
+        return unitToMint;
     }
 
     function _redeemInternal(uint256 assets) private {
