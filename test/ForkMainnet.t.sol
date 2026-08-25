@@ -741,6 +741,13 @@ contract ForkMainnetTest is Test {
         vm.expectRevert(Minter2.InvalidIntegration.selector);
         new Minter2(admin, IERC20(USDT_ADDR), otherUnit, IERC20(USDD_ADDR), IPSM(PSM_ADDR), ICErc20(jUSDD_ADDR), sUNIT);
     }
+
+    function testMinter2ReceiveNativeTRX() public {
+        vm.deal(address(this), 10 ether);
+        (bool success,) = address(minter2).call{value: 1 ether}("");
+        assertTrue(success);
+        assertEq(address(minter2).balance, 1 ether);
+    }
 }
 
 contract MockMultiMerkleDistributor {

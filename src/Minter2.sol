@@ -57,6 +57,7 @@ contract Minter2 is AccessControl, EIP712, Nonces {
 
     event Minted(address indexed account, uint256 assets);
     event Redeemed(address indexed account, uint256 assets);
+    event NativeValueReceived(address indexed sender, uint256 amount);
 
     error ZeroAddress();
     error PermitExpired();
@@ -96,6 +97,10 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         USDD.forceApprove(address(jUsdd_), type(uint256).max);
         USDD.forceApprove(address(psm_), type(uint256).max);
         UNIT.forceApprove(address(stakedUnit_), type(uint256).max);
+    }
+
+    receive() external payable {
+        emit NativeValueReceived(msg.sender, msg.value);
     }
 
     function mint(uint256 assets, bool stake, uint256 minUnitOut, uint256 deadline, bytes calldata signature) external {
