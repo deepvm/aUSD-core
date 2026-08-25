@@ -145,23 +145,19 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         if (assets == 0 || actualOut == 0 || actualOut < minUsdtOut) revert InsufficientOutput();
     }
 
-    /// @notice Withdraws USDD from Minter2's balance, wraps it to jUSDD, and mints UNIT to the distributor.
-    function distributeRewards(uint256 usddAmount, address distributor) external onlyRole(KEEPER_ROLE) {
-        _checkRole(DISTRIBUTOR_ROLE, distributor);
-        if (usddAmount == 0) return;
-
-        // 1. Wrap USDD to jUSDD
-        if (jUSDD.mint(usddAmount) != 0) revert OperationFailed();
-
-        // 2. Mint UNIT 1:1 to distributor (offsetting 12 decimals)
-        UNIT.mint(distributor, usddAmount / 1e12);
-    }
-
-    function multiClaimJustLendRewards(IMultiMerkleDistributor.ClaimParam[] calldata claims)
+    /// @notice Atomically claims rewards from JustLend, wraps them to jUSDD, and mints UNIT to the distributor.
+    function claimAndDistributeRewards(IMultiMerkleDistributor.ClaimParam[] calldata claims, address distributor)
         external
         onlyRole(KEEPER_ROLE)
     {
+        _checkRole(DISTRIBUTOR_ROLE, distributor);
+        uint256 balanceBefore = USDD.balanceOf(address(this));
         IMultiMerkleDistributor(JUSTLEND_DISTRIBUTOR).multiClaim(claims);
+        uint256 claimed = USDD.balanceOf(address(this)) - balanceBefore;
+        if (claimed == 0) return;
+
+        if (jUSDD.mint(claimed) != 0) revert OperationFailed();
+        UNIT.mint(distributor, claimed / 1e12);
     }
 
     function withdraw(IERC20 token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {

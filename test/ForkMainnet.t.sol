@@ -679,22 +679,7 @@ contract ForkMainnetTest is Test {
         vm.stopPrank();
     }
 
-    function testMinter2DistributeRewards() public {
-        uint256 rewardAmount = 1000e18; // 1000 USDD
-
-        usdd.mint(address(minter2), rewardAmount);
-        assertEq(usdd.balanceOf(address(minter2)), rewardAmount);
-
-        vm.prank(admin);
-        minter2.distributeRewards(rewardAmount, address(distributor));
-
-        assertEq(usdd.balanceOf(address(minter2)), 0);
-        assertEq(jUSDD.balanceOf(address(minter2)), rewardAmount);
-
-        assertEq(UNIT.balanceOf(address(distributor)), 1000e6);
-    }
-
-    function testMinter2ClaimJustLendRewards() public {
+    function testMinter2ClaimAndDistributeRewardsAtomic() public {
         MockMultiMerkleDistributor mockDistributorTemplate = new MockMultiMerkleDistributor(IERC20(address(usdd)));
         vm.etch(minter2.JUSTLEND_DISTRIBUTOR(), address(mockDistributorTemplate).code);
 
@@ -712,15 +697,19 @@ contract ForkMainnetTest is Test {
             merkleIndex: 0x1f, index: 0x083c, amounts: amounts, merkleProof: proof
         });
 
+        // Non-keeper reverts
         vm.startPrank(userA);
         vm.expectRevert();
-        minter2.multiClaimJustLendRewards(claims);
+        minter2.claimAndDistributeRewards(claims, address(distributor));
         vm.stopPrank();
 
+        // Keeper executes atomic claim and distribute
         vm.prank(admin);
-        minter2.multiClaimJustLendRewards(claims);
+        minter2.claimAndDistributeRewards(claims, address(distributor));
 
-        assertEq(usdd.balanceOf(address(minter2)), 100e18);
+        assertEq(usdd.balanceOf(address(minter2)), 0);
+        assertEq(jUSDD.balanceOf(address(minter2)), 100e18);
+        assertEq(UNIT.balanceOf(address(distributor)), 100e6);
     }
 
     function testExecuteCall() public {
