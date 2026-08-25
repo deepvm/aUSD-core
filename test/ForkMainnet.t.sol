@@ -230,6 +230,66 @@ contract ForkMainnetTest is Test {
         assertEq(UNIT.balanceOf(admin), 100e6);
     }
 
+    function testUnitFreezingAndConfiscation() public {
+        vm.prank(admin);
+        UNIT.mint(userA, 100e6);
+
+        // Admin freezes userA
+        vm.prank(admin);
+        UNIT.setFrozen(userA, true);
+        assertTrue(UNIT.isFrozen(userA));
+
+        // Frozen userA cannot transfer
+        vm.startPrank(userA);
+        vm.expectRevert(Unit.AccountFrozen.selector);
+        UNIT.transfer(userB, 50e6);
+        vm.stopPrank();
+
+        // Frozen userA cannot deposit into sUNIT
+        vm.startPrank(userA);
+        UNIT.approve(address(sUNIT), 50e6);
+        vm.expectRevert(StakedUnit.AccountFrozen.selector);
+        sUNIT.deposit(50e6, userA);
+        vm.stopPrank();
+
+        // Admin can confiscate from frozen userA
+        vm.prank(admin);
+        UNIT.confiscate(userA, admin, 100e6);
+        assertEq(UNIT.balanceOf(userA), 0);
+        assertEq(UNIT.balanceOf(admin), 100e6);
+
+        // Unfreeze
+        vm.prank(admin);
+        UNIT.setFrozen(userA, false);
+        assertFalse(UNIT.isFrozen(userA));
+    }
+
+    function testStakedUnitConfiscation() public {
+        vm.prank(admin);
+        UNIT.mint(userA, 100e6);
+
+        vm.startPrank(userA);
+        UNIT.approve(address(sUNIT), 100e6);
+        sUNIT.deposit(100e6, userA);
+        vm.stopPrank();
+
+        assertEq(sUNIT.balanceOf(userA), 100e6);
+
+        // Non-admin cannot confiscate sUNIT
+        vm.prank(userB);
+        vm.expectRevert(StakedUnit.Unauthorized.selector);
+        sUNIT.confiscate(userA, userB, 100e6);
+
+        // Admin confiscates sUNIT shares
+        vm.prank(admin);
+        sUNIT.confiscate(userA, admin, 100e6);
+
+        assertEq(sUNIT.balanceOf(userA), 0);
+        assertEq(UNIT.balanceOf(admin), 100e6);
+        assertEq(sUNIT.totalAssets(), 0);
+        assertEq(sUNIT.totalSupply(), 0);
+    }
+
     /* =========================================================================
        3. MINTER2 INTEGRATION TESTS (USDD, PSM, JUSTLEND, YIELD HARVEST)
        ========================================================================= */
