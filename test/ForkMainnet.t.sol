@@ -765,6 +765,22 @@ contract ForkMainnetTest is Test {
         assertTrue(success);
         assertEq(address(minter2).balance, 1 ether);
     }
+
+    function testCumulativeMerkleDropOwnership() public {
+        // renounceOwnership reverts
+        vm.prank(admin);
+        vm.expectRevert(CumulativeMerkleDrop.CannotRenounceOwnership.selector);
+        distributor.renounceOwnership();
+
+        // 2-step ownership transfer
+        vm.prank(admin);
+        distributor.transferOwnership(userA);
+        assertEq(distributor.owner(), admin);
+
+        vm.prank(userA);
+        distributor.acceptOwnership();
+        assertEq(distributor.owner(), userA);
+    }
 }
 
 contract MockMultiMerkleDistributor {

@@ -3,9 +3,9 @@ pragma solidity 0.8.27;
 
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
-contract CumulativeMerkleDrop is Ownable {
+contract CumulativeMerkleDrop is Ownable2Step {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable token;
@@ -16,9 +16,15 @@ contract CumulativeMerkleDrop is Ownable {
     event MerkleRootUpdated(bytes32 indexed newRoot);
     event Claimed(address indexed account, uint256 amount);
 
+    error CannotRenounceOwnership();
+
     constructor(IERC20 token_, bytes32 merkleRoot_) Ownable(msg.sender) {
         token = token_;
         merkleRoot = merkleRoot_;
+    }
+
+    function renounceOwnership() public view override onlyOwner {
+        revert CannotRenounceOwnership();
     }
 
     function setMerkleRoot(bytes32 newRoot) external onlyOwner {
