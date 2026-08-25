@@ -94,8 +94,6 @@ contract Minter2 is AccessControl, EIP712, Nonces {
 
         USDT.forceApprove(address(this), type(uint256).max);
         USDT.forceApprove(psm_.gemJoin(), type(uint256).max);
-        USDD.forceApprove(address(jUsdd_), type(uint256).max);
-        USDD.forceApprove(address(psm_), type(uint256).max);
         UNIT.forceApprove(address(stakedUnit_), type(uint256).max);
     }
 
@@ -195,7 +193,9 @@ contract Minter2 is AccessControl, EIP712, Nonces {
 
     function _depositToJustLend(uint256 usddAmount) private {
         uint256 sharesBefore = IERC20(address(jUSDD)).balanceOf(address(this));
+        USDD.forceApprove(address(jUSDD), usddAmount);
         if (jUSDD.mint(usddAmount) != 0) revert OperationFailed();
+        USDD.forceApprove(address(jUSDD), 0);
         uint256 sharesReceived = IERC20(address(jUSDD)).balanceOf(address(this)) - sharesBefore;
         if (sharesReceived == 0) revert OperationFailed();
     }
@@ -208,7 +208,9 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         if (usddRequired > usddBalance && jUSDD.redeemUnderlying(usddRequired - usddBalance) != 0) {
             revert OperationFailed();
         }
+        USDD.forceApprove(address(PSM), usddRequired);
         PSM.buyGem(address(this), gemAmt);
+        USDD.forceApprove(address(PSM), 0);
         USDT.safeTransferFrom(address(this), msg.sender, gemAmt);
         emit Redeemed(msg.sender, gemAmt);
     }
