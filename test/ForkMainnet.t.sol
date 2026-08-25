@@ -308,7 +308,7 @@ contract ForkMainnetTest is Test {
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
-        minter2.mint(100e6, false, deadline, abi.encodePacked(r, s, v));
+        minter2.mint(100e6, false, 100e6, deadline, abi.encodePacked(r, s, v));
         vm.stopPrank();
 
         // Checks:
@@ -327,7 +327,7 @@ contract ForkMainnetTest is Test {
         digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 
         (v, r, s) = vm.sign(signerKey, digest);
-        minter2.redeem(40e6, false, deadline, abi.encodePacked(r, s, v));
+        minter2.redeem(40e6, false, 40e6, deadline, abi.encodePacked(r, s, v));
         vm.stopPrank();
 
         // Checks:
@@ -352,7 +352,7 @@ contract ForkMainnetTest is Test {
         bytes32 structHash = keccak256(abi.encode(minter2.MINT_TYPEHASH(), userA, 100e6, false, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
-        minter2.mint(100e6, false, deadline, abi.encodePacked(r, s, v));
+        minter2.mint(100e6, false, 0, deadline, abi.encodePacked(r, s, v));
         vm.stopPrank();
 
         // userB deposits 200 USDT
@@ -362,7 +362,7 @@ contract ForkMainnetTest is Test {
         structHash = keccak256(abi.encode(minter2.MINT_TYPEHASH(), userB, 200e6, false, nonce, deadline));
         digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
         (v, r, s) = vm.sign(signerKey, digest);
-        minter2.mint(200e6, false, deadline, abi.encodePacked(r, s, v));
+        minter2.mint(200e6, false, 0, deadline, abi.encodePacked(r, s, v));
         vm.stopPrank();
 
         // --- Off-Chain Admin Calculation Helper ---
@@ -427,7 +427,7 @@ contract ForkMainnetTest is Test {
         bytes32 structHash = keccak256(abi.encode(minter2.MINT_TYPEHASH(), userA, 100e6, false, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
-        minter2.mint(100e6, false, deadline, abi.encodePacked(r, s, v));
+        minter2.mint(100e6, false, 0, deadline, abi.encodePacked(r, s, v));
         vm.stopPrank();
 
         // Accrue interest of 50 USDD
@@ -456,16 +456,45 @@ contract ForkMainnetTest is Test {
         vm.prank(admin);
         minter2.withdraw(IERC20(address(jUSDD)), emergencyReceiver, contractjUSDDBalance);
 
-        assertEq(jUSDD.balanceOf(address(minter2)), 0);
         assertEq(jUSDD.balanceOf(emergencyReceiver), contractjUSDDBalance);
+        assertEq(jUSDD.balanceOf(address(minter2)), 0);
     }
 
     function testMinter2WithDeal() public {
-        deal(USDT_ADDR, userA, 500e6);
-        assertEq(usdt.balanceOf(userA), 500e6);
+        usdt.mint(userA, 1000e6);
 
-        deal(USDD_ADDR, userB, 1000e18);
-        assertEq(usdd.balanceOf(userB), 1000e18);
+        // --- 1. Mint ---
+        vm.startPrank(userA);
+        usdt.approve(address(minter2), 100e6);
+
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = minter2.nonces(userA);
+
+        bytes32 structHash = keccak256(abi.encode(minter2.MINT_TYPEHASH(), userA, 100e6, false, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
+        minter2.mint(100e6, false, 0, deadline, abi.encodePacked(r, s, v));
+        vm.stopPrank();
+
+        assertEq(usdt.balanceOf(userA), 900e6);
+        assertEq(UNIT.balanceOf(userA), 100e6);
+        assertEq(jUSDD.balanceOfUnderlying(address(minter2)), 100e18);
+
+        // --- 2. Redeem ---
+        vm.startPrank(userA);
+        nonce = minter2.nonces(userA);
+        structHash = keccak256(abi.encode(minter2.REDEEM_TYPEHASH(), userA, 40e6, false, nonce, deadline));
+        digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+
+        (v, r, s) = vm.sign(signerKey, digest);
+        minter2.redeem(40e6, false, 0, deadline, abi.encodePacked(r, s, v));
+        vm.stopPrank();
+
+        assertEq(UNIT.balanceOf(userA), 60e6);
+        assertEq(usdt.balanceOf(userA), 940e6);
+        assertEq(usdt.balanceOf(address(minter2)), 0);
+        assertEq(jUSDD.balanceOfUnderlying(address(minter2)), 60e18);
     }
 
     function testMinter2WithTinAndToutFees() public {
@@ -487,7 +516,7 @@ contract ForkMainnetTest is Test {
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
-        minter2.mint(100e6, false, deadline, abi.encodePacked(r, s, v));
+        minter2.mint(100e6, false, 98e6, deadline, abi.encodePacked(r, s, v));
         vm.stopPrank();
 
         assertEq(usdt.balanceOf(userA), 900e6);
@@ -504,7 +533,7 @@ contract ForkMainnetTest is Test {
         digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 
         (v, r, s) = vm.sign(signerKey, digest);
-        minter2.redeem(burnAmt, false, deadline, abi.encodePacked(r, s, v));
+        minter2.redeem(burnAmt, false, expectedGemAmt, deadline, abi.encodePacked(r, s, v));
         vm.stopPrank();
 
         assertEq(UNIT.balanceOf(userA), 0);
@@ -525,7 +554,7 @@ contract ForkMainnetTest is Test {
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
-        minter2.mint(100e6, true, deadline, abi.encodePacked(r, s, v));
+        minter2.mint(100e6, true, 100e6, deadline, abi.encodePacked(r, s, v));
         vm.stopPrank();
 
         assertEq(UNIT.balanceOf(userA), 0);
@@ -543,7 +572,7 @@ contract ForkMainnetTest is Test {
         bytes32 structHash = keccak256(abi.encode(minter2.MINT_TYPEHASH(), userA, 100e6, true, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
-        minter2.mint(100e6, true, deadline, abi.encodePacked(r, s, v));
+        minter2.mint(100e6, true, 100e6, deadline, abi.encodePacked(r, s, v));
 
         // Now Approve Minter2 to spend sUNIT shares
         sUNIT.approve(address(minter2), 100e6);
@@ -553,11 +582,55 @@ contract ForkMainnetTest is Test {
         structHash = keccak256(abi.encode(minter2.REDEEM_TYPEHASH(), userA, 100e6, true, nonce, deadline));
         digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
         (v, r, s) = vm.sign(signerKey, digest);
-        minter2.redeem(100e6, true, deadline, abi.encodePacked(r, s, v));
+        minter2.redeem(100e6, true, 100e6, deadline, abi.encodePacked(r, s, v));
         vm.stopPrank();
 
         assertEq(sUNIT.balanceOf(userA), 0);
         assertEq(usdt.balanceOf(userA), 1000e6);
+    }
+
+    function testMinter2SlippageProtection() public {
+        usdt.mint(userA, 1000e6);
+
+        // Mint with excessive minUnitOut reverts
+        vm.startPrank(userA);
+        usdt.approve(address(minter2), 100e6);
+
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = minter2.nonces(userA);
+        bytes32 structHash = keccak256(abi.encode(minter2.MINT_TYPEHASH(), userA, 100e6, false, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
+
+        vm.expectRevert(Minter2.InsufficientOutput.selector);
+        minter2.mint(100e6, false, 101e6, deadline, abi.encodePacked(r, s, v));
+
+        // Successful mint with exact minUnitOut
+        minter2.mint(100e6, false, 100e6, deadline, abi.encodePacked(r, s, v));
+
+        // Redeem with excessive minUsdtOut reverts
+        nonce = minter2.nonces(userA);
+        structHash = keccak256(abi.encode(minter2.REDEEM_TYPEHASH(), userA, 100e6, false, nonce, deadline));
+        digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        (v, r, s) = vm.sign(signerKey, digest);
+
+        vm.expectRevert(Minter2.InsufficientOutput.selector);
+        minter2.redeem(100e6, false, 101e6, deadline, abi.encodePacked(r, s, v));
+
+        vm.stopPrank();
+    }
+
+    function testZeroMintReverts() public {
+        vm.startPrank(userA);
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = minter2.nonces(userA);
+        bytes32 structHash = keccak256(abi.encode(minter2.MINT_TYPEHASH(), userA, 0, false, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
+
+        vm.expectRevert(Minter2.InsufficientOutput.selector);
+        minter2.mint(0, false, 0, deadline, abi.encodePacked(r, s, v));
+        vm.stopPrank();
     }
 
     function testMinter2DistributeRewards() public {

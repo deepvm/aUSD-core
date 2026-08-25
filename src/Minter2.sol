@@ -62,6 +62,7 @@ contract Minter2 is AccessControl, EIP712, Nonces {
     error PermitExpired();
     error OperationFailed();
     error InvalidIntegration();
+    error InsufficientOutput();
 
     constructor(
         address admin_,
@@ -97,7 +98,7 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         UNIT.forceApprove(address(stakedUnit_), type(uint256).max);
     }
 
-    function mint(uint256 assets, bool stake, uint256 deadline, bytes calldata signature) external {
+    function mint(uint256 assets, bool stake, uint256 minUnitOut, uint256 deadline, bytes calldata signature) external {
         _checkPermit(
             _hashTypedDataV4(
                 keccak256(abi.encode(MINT_TYPEHASH, msg.sender, assets, stake, _useNonce(msg.sender), deadline))
@@ -106,18 +107,20 @@ contract Minter2 is AccessControl, EIP712, Nonces {
             signature
         );
         uint256 unitToMint = _mintInternal(assets);
-        if (unitToMint > 0) {
-            if (stake) {
-                UNIT.mint(address(this), unitToMint);
-                stakedUnit.deposit(unitToMint, msg.sender);
-            } else {
-                UNIT.mint(msg.sender, unitToMint);
-            }
+        if (assets == 0 || unitToMint == 0 || unitToMint < minUnitOut) revert InsufficientOutput();
+
+        if (stake) {
+            UNIT.mint(address(this), unitToMint);
+            stakedUnit.deposit(unitToMint, msg.sender);
+        } else {
+            UNIT.mint(msg.sender, unitToMint);
         }
         emit Minted(msg.sender, unitToMint);
     }
 
-    function redeem(uint256 assets, bool unstake, uint256 deadline, bytes calldata signature) external {
+    function redeem(uint256 assets, bool unstake, uint256 minUsdtOut, uint256 deadline, bytes calldata signature)
+        external
+    {
         _checkPermit(
             _hashTypedDataV4(
                 keccak256(abi.encode(REDEEM_TYPEHASH, msg.sender, assets, unstake, _useNonce(msg.sender), deadline))
@@ -131,7 +134,10 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         } else {
             UNIT.burn(msg.sender, assets);
         }
+        uint256 balanceBefore = USDT.balanceOf(msg.sender);
         _redeemInternal(assets);
+        uint256 actualOut = USDT.balanceOf(msg.sender) - balanceBefore;
+        if (assets == 0 || actualOut == 0 || actualOut < minUsdtOut) revert InsufficientOutput();
     }
 
     /// @notice Withdraws USDD from Minter2's balance, wraps it to jUSDD, and mints UNIT to the distributor.
