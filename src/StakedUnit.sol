@@ -75,7 +75,7 @@ contract StakedUnit is ERC4626 {
     }
 
     function _update(address from, address to, uint256 value) internal override {
-        if (from != address(0) && to != address(0)) {
+        if (value != 0 && from != address(0) && to != address(0)) {
             revert NonTransferable();
         }
         super._update(from, to, value);

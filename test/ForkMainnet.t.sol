@@ -134,6 +134,10 @@ contract ForkMainnetTest is Test {
         UNIT.approve(address(sUNIT), 100e6);
         sUNIT.deposit(100e6, userA);
 
+        // 0-value transfer is permitted for ERC20 compatibility
+        bool success = sUNIT.transfer(userB, 0);
+        assertTrue(success);
+
         // Direct transfer must revert with NonTransferable
         vm.expectRevert(StakedUnit.NonTransferable.selector);
         sUNIT.transfer(userB, 10e6);
