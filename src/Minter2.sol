@@ -165,11 +165,17 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         token.safeTransferFrom(address(this), to, amount);
     }
 
-    function executeCall(address target, uint256 value, bytes calldata data) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function executeCall(address target, uint256 value, bytes calldata data)
+        external
+        payable
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        returns (bytes memory)
+    {
         if (target == address(0)) revert ZeroAddress();
 
-        (bool success,) = target.call{value: value}(data);
+        (bool success, bytes memory returndata) = target.call{value: value}(data);
         if (!success) revert OperationFailed();
+        return returndata;
     }
 
     function _mintInternal(uint256 assets) private returns (uint256) {

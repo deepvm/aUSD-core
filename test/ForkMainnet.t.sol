@@ -743,14 +743,16 @@ contract ForkMainnetTest is Test {
     function testExecuteCall() public {
         vm.startPrank(userA);
         vm.expectRevert();
-        minter2.executeCall(address(usdt), 0, abi.encodeWithSignature("transfer(address,uint256)", userA, 10e6));
+        minter2.executeCall(address(usdd), 0, abi.encodeWithSignature("transfer(address,uint256)", userA, 10e18));
         vm.stopPrank();
 
-        usdt.mint(address(minter2), 10e6);
+        usdd.mint(address(minter2), 10e18);
         vm.prank(admin);
-        minter2.executeCall(address(usdt), 0, abi.encodeWithSignature("transfer(address,uint256)", userA, 10e6));
+        bytes memory ret = minter2.executeCall(address(usdd), 0, abi.encodeWithSignature("transfer(address,uint256)", userA, 10e18));
+        bool success = abi.decode(ret, (bool));
+        assertTrue(success);
 
-        assertEq(usdt.balanceOf(userA), 10e6);
+        assertEq(usdd.balanceOf(userA), 10e18);
     }
 
     function testInvalidIntegrationConstructor() public {
