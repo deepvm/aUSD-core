@@ -135,9 +135,9 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         );
         if (unstake) {
             stakedUnit.withdraw(assets, address(this), msg.sender);
-            UNIT.burn(address(this), assets);
+            UNIT.burn(assets);
         } else {
-            UNIT.burn(msg.sender, assets);
+            UNIT.burnFrom(msg.sender, assets);
         }
         uint256 balanceBefore = USDT.balanceOf(msg.sender);
         _redeemInternal(assets);

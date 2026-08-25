@@ -39,7 +39,12 @@ contract Unit is ERC20, AccessControl {
         _mint(to, assets);
     }
 
-    function burn(address from, uint256 assets) external onlyRole(MINTER_ROLE) {
+    function burn(uint256 assets) external {
+        _burn(msg.sender, assets);
+    }
+
+    function burnFrom(address from, uint256 assets) external {
+        _spendAllowance(from, msg.sender, assets);
         _burn(from, assets);
     }
 

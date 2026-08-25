@@ -189,9 +189,9 @@ contract ForkMainnetTest is Test {
         sUNIT.deposit(100e6, userA);
         vm.stopPrank();
 
-        // Simulate deficit: burn 50 UNIT directly from sUNIT
+        // Simulate deficit: confiscate 50 UNIT directly from sUNIT
         vm.prank(admin);
-        UNIT.burn(address(sUNIT), 50e6);
+        UNIT.confiscate(address(sUNIT), admin, 50e6);
 
         // Vault is now undercollateralized (50 assets vs 100 shares)
         assertEq(sUNIT.totalAssets(), 50e6);
@@ -245,14 +245,34 @@ contract ForkMainnetTest is Test {
         vm.expectRevert();
         UNIT.mint(userA, 100e6);
 
-        // User A tries to burn
-        vm.expectRevert();
-        UNIT.burn(userA, 100e6);
-
         // User A tries to confiscate
         vm.expectRevert();
         UNIT.confiscate(userA, userB, 100e6);
         vm.stopPrank();
+    }
+
+    function testUnitBurnAndBurnFrom() public {
+        vm.prank(admin);
+        UNIT.mint(userA, 100e6);
+
+        // User A burns own tokens
+        vm.prank(userA);
+        UNIT.burn(40e6);
+        assertEq(UNIT.balanceOf(userA), 60e6);
+
+        // User B cannot burnFrom user A without allowance
+        vm.prank(userB);
+        vm.expectRevert();
+        UNIT.burnFrom(userA, 20e6);
+
+        // User A gives allowance to user B
+        vm.prank(userA);
+        UNIT.approve(userB, 20e6);
+
+        // User B burns with allowance
+        vm.prank(userB);
+        UNIT.burnFrom(userA, 20e6);
+        assertEq(UNIT.balanceOf(userA), 40e6);
     }
 
     function testMinterRoleAccessControl() public {
@@ -368,6 +388,7 @@ contract ForkMainnetTest is Test {
 
         // --- 2. Redeem ---
         vm.startPrank(userA);
+        UNIT.approve(address(minter2), 40e6);
         nonce = minter2.nonces(userA);
         structHash = keccak256(abi.encode(minter2.REDEEM_TYPEHASH(), userA, 40e6, false, nonce, deadline));
         digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
@@ -529,6 +550,7 @@ contract ForkMainnetTest is Test {
 
         // --- 2. Redeem ---
         vm.startPrank(userA);
+        UNIT.approve(address(minter2), 40e6);
         nonce = minter2.nonces(userA);
         structHash = keccak256(abi.encode(minter2.REDEEM_TYPEHASH(), userA, 40e6, false, nonce, deadline));
         digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
@@ -571,8 +593,9 @@ contract ForkMainnetTest is Test {
 
         // --- 2. Redeem ---
         vm.startPrank(userA);
-        nonce = minter2.nonces(userA);
         uint256 burnAmt = 98e6;
+        UNIT.approve(address(minter2), burnAmt);
+        nonce = minter2.nonces(userA);
         uint256 expectedGemAmt = (burnAmt * 1e18) / (1e18 + 5 * 10 ** 16);
 
         structHash = keccak256(abi.encode(minter2.REDEEM_TYPEHASH(), userA, burnAmt, false, nonce, deadline));
@@ -655,6 +678,7 @@ contract ForkMainnetTest is Test {
         minter2.mint(100e6, false, 100e6, deadline, abi.encodePacked(r, s, v));
 
         // Redeem with excessive minUsdtOut reverts
+        UNIT.approve(address(minter2), 100e6);
         nonce = minter2.nonces(userA);
         structHash = keccak256(abi.encode(minter2.REDEEM_TYPEHASH(), userA, 100e6, false, nonce, deadline));
         digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
