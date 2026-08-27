@@ -785,6 +785,28 @@ contract ForkMainnetTest is Test {
         distributor.acceptOwnership();
         assertEq(distributor.owner(), userA);
     }
+
+    function testMinter2InflationAttackProtection() public {
+        // Accrue extreme yield to create massive exchange rate discrepancy
+        jUSDD.accrueYield(1000000e18);
+
+        usdt.mint(userA, 100e6);
+        vm.startPrank(userA);
+        usdt.approve(address(minter2), 100e6);
+
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = minter2.nonces(userA);
+        bytes32 structHash = keccak256(abi.encode(minter2.MINT_TYPEHASH(), userA, 100e6, false, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
+
+        minter2.mint(100e6, false, 0, deadline, abi.encodePacked(r, s, v));
+        vm.stopPrank();
+
+        // UNIT minted should not exceed credited underlying backing
+        assertTrue(UNIT.balanceOf(userA) <= 100e6);
+        assertTrue(UNIT.balanceOf(userA) > 0);
+    }
 }
 
 contract MockMultiMerkleDistributor {

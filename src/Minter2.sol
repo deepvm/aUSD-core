@@ -6,6 +6,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Unit} from "./Unit.sol";
 import {StakedUnit} from "./StakedUnit.sol";
 
@@ -20,6 +21,8 @@ interface ICErc20 {
     function mint(uint256 mintAmount) external returns (uint256);
     function redeemUnderlying(uint256 redeemAmount) external returns (uint256);
     function underlying() external view returns (address);
+    function balanceOf(address owner) external view returns (uint256);
+    function exchangeRateStored() external view returns (uint256);
 }
 
 interface IGemJoin {
@@ -158,8 +161,10 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         uint256 claimed = USDD.balanceOf(address(this)) - balanceBefore;
         if (claimed == 0) return;
 
-        _depositToJustLend(claimed);
-        UNIT.mint(distributor, claimed / 1e12);
+        uint256 unitToMint = _depositToJustLend(claimed);
+        if (unitToMint > 0) {
+            UNIT.mint(distributor, unitToMint);
+        }
     }
 
     function withdraw(IERC20 token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -187,21 +192,29 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         PSM.sellGem(address(this), assets);
         uint256 usddReceived = USDD.balanceOf(address(this)) - usddBefore;
 
-        if (usddReceived > 0) {
-            _depositToJustLend(usddReceived);
-        }
-        uint256 unitToMint = usddReceived / 1e12;
+        uint256 unitToMint = _depositToJustLend(usddReceived);
         if (assets > 0 && unitToMint == 0) revert OperationFailed();
         return unitToMint;
     }
 
-    function _depositToJustLend(uint256 usddAmount) private {
-        uint256 sharesBefore = IERC20(address(jUSDD)).balanceOf(address(this));
+    function _depositToJustLend(uint256 usddAmount) private returns (uint256) {
+        if (usddAmount == 0) return 0;
+        uint256 sharesBefore = jUSDD.balanceOf(address(this));
         USDD.forceApprove(address(jUSDD), usddAmount);
         if (jUSDD.mint(usddAmount) != 0) revert OperationFailed();
         USDD.forceApprove(address(jUSDD), 0);
-        uint256 sharesReceived = IERC20(address(jUSDD)).balanceOf(address(this)) - sharesBefore;
+        uint256 sharesReceived = jUSDD.balanceOf(address(this)) - sharesBefore;
         if (sharesReceived == 0) revert OperationFailed();
+
+        uint256 creditedBacking = Math.mulDiv(sharesReceived, jUSDD.exchangeRateStored(), 1e18);
+        uint256 nominalUnits = usddAmount / 1e12;
+        uint256 creditedUnits = creditedBacking / 1e12;
+        uint256 unitToMint = Math.min(nominalUnits, creditedUnits);
+
+        if (nominalUnits > creditedUnits && (nominalUnits - creditedUnits) > 1) {
+            revert OperationFailed();
+        }
+        return unitToMint;
     }
 
     function _redeemInternal(uint256 assets) private {
