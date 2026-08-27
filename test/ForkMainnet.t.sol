@@ -16,7 +16,7 @@ contract ForkMainnetTest is Test {
     // Real mainnet addresses
     address constant USDT_ADDR = 0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C;
     address constant USDD_ADDR = 0xE91A7411e56Ce79E83570570f49B9FC35B7727c5;
-    address constant PSM_ADDR = 0xB50Eb419ebeBA06c80Df5e9AaeC494Cef4297879;
+    address constant PSM_ADDR = 0x1113AE08A16489A7B76f2Ccc52290ab54E2783d8;
     address constant jUSDD_ADDR = 0x65c9feDE72Ba73CD1B0DCA2A974C070153dC6FCB;
 
     MockTRONUSDT usdt;
@@ -71,8 +71,7 @@ contract ForkMainnetTest is Test {
         vm.prank(admin);
         distributor = new CumulativeMerkleDrop(UNIT, bytes32(0));
 
-        minter2 =
-            new Minter2(admin, IERC20(USDT_ADDR), UNIT, IERC20(USDD_ADDR), IPSM(PSM_ADDR), ICErc20(jUSDD_ADDR), sUNIT);
+        minter2 = new Minter2(admin, UNIT, sUNIT);
 
         // Setup access control roles
         vm.startPrank(admin);
@@ -758,7 +757,10 @@ contract ForkMainnetTest is Test {
     function testInvalidIntegrationConstructor() public {
         Unit otherUnit = new Unit(admin);
         vm.expectRevert(Minter2.InvalidIntegration.selector);
-        new Minter2(admin, IERC20(USDT_ADDR), otherUnit, IERC20(USDD_ADDR), IPSM(PSM_ADDR), ICErc20(jUSDD_ADDR), sUNIT);
+        new Minter2(admin, otherUnit, sUNIT);
+
+        vm.expectRevert(Minter2.ZeroAddress.selector);
+        new Minter2(address(0), UNIT, sUNIT);
     }
 
     function testMinter2ReceiveNativeTRX() public {

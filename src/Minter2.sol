@@ -19,6 +19,15 @@ interface IPSM {
 interface ICErc20 {
     function mint(uint256 mintAmount) external returns (uint256);
     function redeemUnderlying(uint256 redeemAmount) external returns (uint256);
+    function underlying() external view returns (address);
+}
+
+interface IGemJoin {
+    function gem() external view returns (address);
+}
+
+interface IERC20Metadata {
+    function decimals() external view returns (uint8);
 }
 
 interface IMultiMerkleDistributor {
@@ -42,17 +51,17 @@ contract Minter2 is AccessControl, EIP712, Nonces {
     bytes32 public constant KEEPER_ROLE = keccak256("KEEPER_ROLE");
 
     address public constant JUSTLEND_DISTRIBUTOR = 0xcF6CC9591f7B424295294D8138A8b2EDBAFc6Ee8; // TUsyCPRyQdMsn9WnJcssBFXtzg6bUVbty6
+    IERC20 public constant USDT = IERC20(0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C); // TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
+    IERC20 public constant USDD = IERC20(0xE91A7411e56Ce79E83570570f49B9FC35B7727c5); // TXDk8mbtRbXeYuMNS83CfKPaYYT8XWv9Hz
+    IPSM public constant PSM = IPSM(0x1113AE08A16489A7B76f2Ccc52290ab54E2783d8); // TBXW4hS5KYjjbJXDpnrPf4zhkLwrpUjbyz
+    ICErc20 public constant jUSDD = ICErc20(0x65c9feDE72Ba73CD1B0DCA2A974C070153dC6FCB); // TKFRELGGoRgiayhwJTNNLqCNjFoLBh3Mnf
 
     bytes32 public constant MINT_TYPEHASH =
         keccak256("Mint(address account,uint256 assets,bool stake,uint256 nonce,uint256 deadline)");
     bytes32 public constant REDEEM_TYPEHASH =
         keccak256("Redeem(address account,uint256 assets,bool unstake,uint256 nonce,uint256 deadline)");
 
-    IERC20 public immutable USDT;
     Unit public immutable UNIT;
-    IERC20 public immutable USDD;
-    IPSM public immutable PSM;
-    ICErc20 public immutable jUSDD;
     StakedUnit public immutable stakedUnit;
 
     event Minted(address indexed account, uint256 assets);
@@ -65,35 +74,30 @@ contract Minter2 is AccessControl, EIP712, Nonces {
     error InvalidIntegration();
     error InsufficientOutput();
 
-    constructor(
-        address admin_,
-        IERC20 usdt_,
-        Unit unit_,
-        IERC20 usdd_,
-        IPSM psm_,
-        ICErc20 jUsdd_,
-        StakedUnit stakedUnit_
-    ) EIP712("Unit Minter", "3") {
-        if (
-            admin_ == address(0) || address(usdt_) == address(0) || address(unit_) == address(0)
-                || address(usdd_) == address(0) || address(psm_) == address(0) || address(jUsdd_) == address(0)
-                || address(stakedUnit_) == address(0)
-        ) revert ZeroAddress();
+    constructor(address admin_, Unit unit_, StakedUnit stakedUnit_) EIP712("Unit Minter", "3") {
+        if (admin_ == address(0) || address(unit_) == address(0) || address(stakedUnit_) == address(0)) {
+            revert ZeroAddress();
+        }
 
         if (stakedUnit_.asset() != address(unit_)) revert InvalidIntegration();
+        if (unit_.decimals() != 6 || stakedUnit_.decimals() != 6) revert InvalidIntegration();
+        if (IERC20Metadata(address(USDT)).decimals() != 6 || IERC20Metadata(address(USDD)).decimals() != 18) {
+            revert InvalidIntegration();
+        }
 
-        USDT = usdt_;
+        address gemJoin = PSM.gemJoin();
+        if (jUSDD.underlying() != address(USDD) || IGemJoin(gemJoin).gem() != address(USDT)) {
+            revert InvalidIntegration();
+        }
+
         UNIT = unit_;
-        USDD = usdd_;
-        PSM = psm_;
-        jUSDD = jUsdd_;
         stakedUnit = stakedUnit_;
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(KEEPER_ROLE, admin_);
 
         USDT.forceApprove(address(this), type(uint256).max);
-        USDT.forceApprove(psm_.gemJoin(), type(uint256).max);
+        USDT.forceApprove(gemJoin, type(uint256).max);
         UNIT.forceApprove(address(stakedUnit_), type(uint256).max);
     }
 
