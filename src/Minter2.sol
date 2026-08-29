@@ -206,15 +206,20 @@ contract Minter2 is AccessControl, EIP712, Nonces {
         uint256 sharesReceived = jUSDD.balanceOf(address(this)) - sharesBefore;
         if (sharesReceived == 0) revert OperationFailed();
 
-        uint256 creditedBacking = Math.mulDiv(sharesReceived, jUSDD.exchangeRateStored(), 1e18);
+        uint256 rate = jUSDD.exchangeRateStored();
+        uint256 creditedBacking = Math.mulDiv(sharesReceived, rate, 1e18);
         uint256 nominalUnits = usddAmount / 1e12;
-        uint256 creditedUnits = creditedBacking / 1e12;
-        uint256 unitToMint = Math.min(nominalUnits, creditedUnits);
+        uint256 nominalBacking = nominalUnits * 1e12;
 
-        if (nominalUnits > creditedUnits && (nominalUnits - creditedUnits) > 1) {
-            revert OperationFailed();
+        if (nominalBacking > creditedBacking) {
+            uint256 loss = nominalBacking - creditedBacking;
+            if (loss > Math.min(Math.ceilDiv(rate, 1e18), 1e12 - 1)) revert OperationFailed();
         }
-        return unitToMint;
+
+        uint256 backing = USDD.balanceOf(address(this)) + Math.mulDiv(jUSDD.balanceOf(address(this)), rate, 1e18);
+        if (backing < (UNIT.totalSupply() + nominalUnits) * 1e12) revert OperationFailed();
+
+        return nominalUnits;
     }
 
     function _redeemInternal(uint256 assets) private {

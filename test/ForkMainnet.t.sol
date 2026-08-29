@@ -68,13 +68,11 @@ contract ForkMainnetTest is Test {
         UNIT = new Unit(admin);
         sUNIT = new StakedUnit(UNIT);
 
-        vm.prank(admin);
+        vm.startPrank(admin);
         distributor = new CumulativeMerkleDrop(UNIT, bytes32(0));
-
         minter2 = new Minter2(admin, UNIT, sUNIT);
 
         // Setup access control roles
-        vm.startPrank(admin);
         UNIT.grantRole(UNIT.MINTER_ROLE(), admin);
         UNIT.grantRole(UNIT.MINTER_ROLE(), address(sUNIT));
         UNIT.grantRole(UNIT.MINTER_ROLE(), address(minter2));
@@ -806,6 +804,27 @@ contract ForkMainnetTest is Test {
         // UNIT minted should not exceed credited underlying backing
         assertTrue(UNIT.balanceOf(userA) <= 100e6);
         assertTrue(UNIT.balanceOf(userA) > 0);
+    }
+
+    function testMintOneUSDTExactRounding() public {
+        // Seed slight yield to simulate real mainnet non-integer exchange rate
+        jUSDD.accrueYield(1234567890123456);
+
+        usdt.mint(userA, 1e6); // 1 USDT
+        vm.startPrank(userA);
+        usdt.approve(address(minter2), 1e6);
+
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = minter2.nonces(userA);
+        bytes32 structHash = keccak256(abi.encode(minter2.MINT_TYPEHASH(), userA, 1e6, false, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
+
+        // Require exactly 1 UNIT (1_000_000)
+        minter2.mint(1e6, false, 1e6, deadline, abi.encodePacked(r, s, v));
+        vm.stopPrank();
+
+        assertEq(UNIT.balanceOf(userA), 1e6);
     }
 }
 
